@@ -234,12 +234,22 @@ export const store = {
 };
 
 // React hook
-import { useSyncExternalStore } from 'react';
+import { useState, useEffect } from 'react';
 
 export function useStore<T>(selector: () => T): T {
-  return useSyncExternalStore(
-    (cb) => store.subscribe(cb),
-    selector,
-    selector,
-  );
+  const [value, setValue] = useState<T>(() => selector());
+  
+  useEffect(() => {
+    const updateValue = () => setValue(selector());
+    
+    // Subscribe to store changes
+    const unsubscribe = store.subscribe(updateValue);
+    
+    // Update immediately in case data changed between render and effect
+    updateValue();
+    
+    return unsubscribe;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  return value;
 }
