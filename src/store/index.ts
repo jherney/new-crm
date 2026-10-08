@@ -234,12 +234,14 @@ export const store = {
 };
 
 // React hook
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, useCallback, useRef } from 'react';
 
 export function useStore<T>(selector: () => T): T {
-  return useSyncExternalStore(
-    (cb) => store.subscribe(cb),
-    selector,
-    selector,
-  );
+  const selectorRef = useRef(selector);
+  selectorRef.current = selector;
+  
+  const stableSelector = useCallback(() => selectorRef.current(), []);
+  const subscribe = useCallback((cb: () => void) => store.subscribe(cb), []);
+  
+  return useSyncExternalStore(subscribe, stableSelector, stableSelector);
 }
