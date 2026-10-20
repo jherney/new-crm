@@ -3,6 +3,7 @@ import { isClosedStage } from '../types';
 import { TrendingUp, Users, DollarSign, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
+import { formatCompactCurrency } from '../lib/currency-format';
 
 export default function Dashboard() {
   const allContacts = useStore(() => store.getContacts());
@@ -71,8 +72,8 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={<DollarSign className="w-5 h-5" />} label="Pipeline Value" value={`$${(totalValue / 1000).toFixed(0)}K`} sub={`Weighted: $${(weightedValue / 1000).toFixed(0)}K`} color="blue" trend={12} />
-        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Won Revenue" value={`$${(wonValue / 1000).toFixed(0)}K`} sub={`${allDeals.filter(d => d.stage === 'closed_won').length} deals closed`} color="green" trend={8} />
+        <StatCard icon={<DollarSign className="w-5 h-5" />} label="Pipeline Value" value={formatCompactCurrency(totalValue)} sub={`Weighted: ${formatCompactCurrency(weightedValue)}`} color="blue" trend={12} />
+        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Won Revenue" value={formatCompactCurrency(wonValue)} sub={`${allDeals.filter(d => d.stage === 'closed_won').length} deals closed`} color="green" trend={8} />
         <StatCard icon={<Users className="w-5 h-5" />} label="Contacts" value={allContacts.length.toString()} sub={`${allCompanies.length} companies`} color="purple" trend={5} />
         <StatCard icon={<Target className="w-5 h-5" />} label="Open Deals" value={openDeals.length.toString()} sub="Active pipeline" color="orange" trend={-2} />
       </div>
@@ -80,11 +81,11 @@ export default function Dashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pipeline by Stage</h3>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pipeline by Stage</h2>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={pipelineData}>
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-              <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca3af" interval={0} angle={-35} textAnchor="end" height={80} />
+              <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" tickFormatter={formatCompactCurrency} />
               <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']} />
               <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                 {pipelineData.map((entry, index) => (
@@ -96,11 +97,14 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Deal Distribution</h3>
-          <div className="flex items-center justify-center">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Deal Distribution</h2>
+          <ul className="sr-only">
+            {stageDistribution.map(s => <li key={s.name}>{s.name}: {s.value} deals</li>)}
+          </ul>
+          <div className="flex items-center justify-center" aria-hidden="true">
             <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={stageDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+              <PieChart accessibilityLayer={false}>
+                <Pie rootTabIndex={-1} data={stageDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
                   {stageDistribution.map((entry, index) => (
                     <Cell key={index} fill={entry.color} />
                   ))}
@@ -114,7 +118,7 @@ export default function Dashboard() {
 
 {/* Revenue Forecast */}
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue Forecast</h3>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue Forecast</h2>
         {forecastData.length === 0 ? (
           <p className="text-sm text-gray-500">No open deals with close dates to forecast</p>
         ) : (
@@ -131,7 +135,7 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-              <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+              <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" tickFormatter={formatCompactCurrency} />
               <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, '']} />
               <Area type="monotone" dataKey="expected" name="Expected" stroke="#5a8dee" fill="url(#expectedGrad)" />
               <Area type="monotone" dataKey="weighted" name="Weighted" stroke="#2ecc71" fill="url(#weightedGrad)" />
@@ -143,7 +147,7 @@ export default function Dashboard() {
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Upcoming Activities</h3>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Upcoming Activities</h2>
           <div className="space-y-3">
             {upcomingActivities.length === 0 && <p className="text-gray-500 text-sm">No upcoming activities</p>}
             {upcomingActivities.map((activity) => (
@@ -160,7 +164,7 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Stats</h3>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Stats</h2>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500 dark:text-gray-400">Win Rate</span>
@@ -211,7 +215,7 @@ function StatCard({ icon, label, value, sub, color, trend }: { icon: React.React
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
       <div className="flex items-center justify-between">
         <div className={`p-2 rounded-lg ${colorMap[color]}`}>{icon}</div>
-        <div className={`flex items-center gap-1 text-xs font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <div className={`flex items-center gap-1 text-xs font-medium ${trend >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
           {trend >= 0 ? '↑' : '↓'}{Math.abs(trend)}%
         </div>
       </div>
@@ -219,7 +223,7 @@ function StatCard({ icon, label, value, sub, color, trend }: { icon: React.React
         <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{sub}</p>
       </div>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{label}</p>
+      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{label}</p>
     </div>
   );
 }
