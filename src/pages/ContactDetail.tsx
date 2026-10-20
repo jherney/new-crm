@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore, store } from '../store';
 import { ArrowLeft, Mail, Phone, Building2, Edit, Trash2, Tag, FileText, Briefcase } from 'lucide-react';
 import { format } from 'date-fns';
+import ActivityTimeline from '../components/ActivityTimeline';
 
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>();
@@ -126,23 +127,11 @@ export default function ContactDetail() {
         </div>
       )}
 
-      {/* Related Activities */}
-      {activities.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activities ({activities.length})</h2>
-          <div className="space-y-2">
-            {activities.slice(0, 5).map(activity => (
-              <div key={activity.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div className={`w-2 h-2 rounded-full ${activity.type === 'call' ? 'bg-green-500' : activity.type === 'email' ? 'bg-blue-500' : activity.type === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${activity.completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>{activity.subject}</p>
-                  <p className="text-xs text-gray-500 capitalize">{activity.type}{activity.due_date ? ` · ${format(new Date(activity.due_date), 'MMM d')}` : ''}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Activity Timeline */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Timeline</h2>
+        <ActivityTimeline activities={activities} deals={deals} />
+      </div>
     </div>
   );
 }

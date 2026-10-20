@@ -1,7 +1,7 @@
 import { store, useStore } from '../store';
-import { DEAL_STAGES } from '../types';
+import { isClosedStage } from '../types';
 import { TrendingUp, Users, DollarSign, Target } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
@@ -14,20 +14,29 @@ export default function Dashboard() {
   const totalValue = allDeals.reduce((s, d) => s + (d.value || 0), 0);
   const wonValue = allDeals.filter(d => d.stage === 'closed_won').reduce((s, d) => s + (d.value || 0), 0);
   const weightedValue = allDeals.reduce((s, d) => s + (d.value || 0) * (d.probability || 0) / 100, 0);
-  const openDeals = allDeals.filter(d => !['closed_won', 'closed_lost'].includes(d.stage));
+  const openDeals = allDeals.filter(d => !isClosedStage(d.stage));
   const upcomingActivities = allActivities.filter(a => !a.completed && a.due_date).sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()).slice(0, 5);
 
-  const pipelineData = DEAL_STAGES.filter(s => !s.is_won && !s.is_lost).map(stage => ({
-    name: stage.label,
-    value: allDeals.filter(d => d.stage === stage.key).reduce((s, d) => s + (d.value || 0), 0),
-    count: allDeals.filter(d => d.stage === stage.key).length,
-    color: stage.color,
+  const allPipelines = store.getPipelines();
+  const hasMultiplePipelines = allPipelines.length > 1;
+  const stageRows = allPipelines.flatMap(pipeline => pipeline.stages.map(stage => ({
+    pipeline,
+    stage,
+    label: hasMultiplePipelines ? `${pipeline.name}: ${stage.label}` : stage.label,
+    deals: allDeals.filter(d => d.pipeline_id === pipeline.id && d.stage === stage.key),
+  })));
+
+  const pipelineData = stageRows.filter(r => !r.stage.is_won && !r.stage.is_lost).map(r => ({
+    name: r.label,
+    value: r.deals.reduce((s, d) => s + (d.value || 0), 0),
+    count: r.deals.length,
+    color: r.stage.color,
   }));
 
-  const stageDistribution = DEAL_STAGES.map(stage => ({
-    name: stage.label,
-    value: allDeals.filter(d => d.stage === stage.key).length,
-    color: stage.color,
+  const stageDistribution = stageRows.map(r => ({
+    name: r.label,
+    value: r.deals.length,
+    color: r.stage.color,
   })).filter(s => s.value > 0);
 
   const contactStatusData = ['lead', 'prospect', 'customer', 'partner', 'vendor'].map(status => ({
@@ -38,6 +47,20 @@ export default function Dashboard() {
   const statusColors = ['#7c7cff', '#5a8dee', '#2ecc71', '#f2a93b', '#e96d6d'];
   const closedDeals = allDeals.filter(d => ['closed_won', 'closed_lost'].includes(d.stage));
   const winRate = closedDeals.length > 0 ? Math.round((allDeals.filter(d => d.stage === 'closed_won').length / closedDeals.length) * 100) : 0;
+
+  const forecastData = (() => {
+    const byMonth: Record<string, { month: string; expected: number; weighted: number }> = {};
+    const open = allDeals.filter(d => !isClosedStage(d.stage) && d.expected_close_date);
+    open.forEach(d => {
+      const key = d.expected_close_date!.slice(0, 7);
+      if (!byMonth[key]) {
+        byMonth[key] = { month: format(new Date(d.expected_close_date!), 'MMM yyyy'), expected: 0, weighted: 0 };
+      }
+      byMonth[key].expected += d.value;
+      byMonth[key].weighted += d.value * (d.probability || 0) / 100;
+    });
+    return Object.keys(byMonth).sort().map(key => byMonth[key]);
+  })();
 
   return (
     <div className="space-y-6">
@@ -87,6 +110,34 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         </div>
+      </div>
+
+{/* Revenue Forecast */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue Forecast</h3>
+        {forecastData.length === 0 ? (
+          <p className="text-sm text-gray-500">No open deals with close dates to forecast</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={forecastData}>
+              <defs>
+                <linearGradient id="expectedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#5a8dee" stopOpacity={0.6} />
+                  <stop offset="95%" stopColor="#5a8dee" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="weightedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2ecc71" stopOpacity={0.6} />
+                  <stop offset="95%" stopColor="#2ecc71" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+              <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+              <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, '']} />
+              <Area type="monotone" dataKey="expected" name="Expected" stroke="#5a8dee" fill="url(#expectedGrad)" />
+              <Area type="monotone" dataKey="weighted" name="Weighted" stroke="#2ecc71" fill="url(#weightedGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Bottom Row */}
