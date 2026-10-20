@@ -65,7 +65,7 @@ export default function Layout() {
             </div>
             <span className="font-bold text-lg text-gray-900 dark:text-white">CRM Pro</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400">
+          <button onClick={() => setSidebarOpen(false)} aria-label="Close menu" className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -108,7 +108,7 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Header */}
         <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 flex items-center px-4 lg:px-6 gap-4">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400">
             <Menu className="w-6 h-6" />
           </button>
 
@@ -116,11 +116,12 @@ export default function Layout() {
           <div className="flex-1 max-w-md relative">
             <button
               onClick={() => setShowSearch(!showSearch)}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              aria-expanded={showSearch}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
               <Search className="w-4 h-4" />
               <span>Search...</span>
-              <span className="ml-auto text-xs bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">⌘K</span>
+              <span className="ml-auto text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded">⌘K</span>
             </button>
             {showSearch && (
               <div className="absolute top-full mt-2 left-0 right-0 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-2 z-50">
@@ -128,7 +129,7 @@ export default function Layout() {
                   autoFocus
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search contacts, companies, deals..."
+                  aria-label="Search contacts, companies and deals" placeholder="Search contacts, companies, deals..."
                   className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white text-sm outline-none"
                 />
                 {searchResults.length > 0 && (
@@ -154,7 +155,7 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={toggleDark} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <button onClick={toggleDark} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
