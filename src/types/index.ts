@@ -123,8 +123,8 @@ export interface Pipeline {
   updated_at: string;
 }
 
-const WON_STAGE: DealStageMeta = DEAL_STAGES[4];
-const LOST_STAGE: DealStageMeta = DEAL_STAGES[5];
+const WON_STAGE = DEAL_STAGES.find(s => s.key === STAGE_WON)!;
+const LOST_STAGE = DEAL_STAGES.find(s => s.key === STAGE_LOST)!;
 const STAGE_PALETTE = ['#7c7cff', '#5a8dee', '#f2a93b', '#e96d6d', '#9b59b6', '#1abc9c', '#e67e22'];
 
 export function slugifyStageKey(label: string): string {
@@ -158,50 +158,4 @@ export function stageMeta(stage: DealStage, pipeline?: Pipeline): DealStageMeta 
 
 export function isClosedStage(stage: DealStage): boolean {
   return stage === STAGE_WON || stage === STAGE_LOST;
-}
-
-const SCORE_TAG_WEIGHTS: Record<string, number> = {
-  'decision-maker': 15,
-  'executive': 12,
-  'vip': 10,
-  'enterprise': 8,
-  'renewal': 6,
-  'upsell': 6,
-  'integration': 4,
-  'pilot': 3,
-};
-
-const SCORE_SOURCE_WEIGHTS: Record<string, number> = {
-  referral: 10,
-  partner: 8,
-  inbound: 6,
-  upsell: 6,
-  conference: 4,
-  outbound: 2,
-};
-
-export function dealScore(deal: Deal): number {
-  let score = deal.probability * 0.4;
-
-  const valueScore = Math.min(20, Math.log10(deal.value + 1) * 3);
-  score += valueScore;
-
-  for (const tag of deal.tags) {
-    score += SCORE_TAG_WEIGHTS[tag] || 0;
-  }
-  score += SCORE_SOURCE_WEIGHTS[deal.source] || 0;
-
-  if (deal.expected_close_date) {
-    const days = (new Date(deal.expected_close_date).getTime() - Date.now()) / 86400000;
-    if (days >= 0 && days <= 30) score += 10;
-    else if (days > 30 && days <= 90) score += 5;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-export function scoreLabel(score: number): { label: string; color: string } {
-  if (score >= 80) return { label: 'Hot', color: '#e96d6d' };
-  if (score >= 50) return { label: 'Warm', color: '#f2a93b' };
-  return { label: 'Cold', color: '#95a5a6' };
 }

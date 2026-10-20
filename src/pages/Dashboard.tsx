@@ -1,9 +1,10 @@
 import { store, useStore } from '../store';
-import { isClosedStage } from '../types';
+import { STAGE_WON, STAGE_LOST, isClosedStage } from '../types';
 import { TrendingUp, Users, DollarSign, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import { formatCompactCurrency } from '../lib/currency-format';
+import { buildRevenueForecast } from '../lib/revenue-forecast';
 
 export default function Dashboard() {
   const allContacts = useStore(() => store.getContacts());
@@ -13,12 +14,12 @@ export default function Dashboard() {
   const allEvents = useStore(() => store.getEvents());
 
   const totalValue = allDeals.reduce((s, d) => s + (d.value || 0), 0);
-  const wonValue = allDeals.filter(d => d.stage === 'closed_won').reduce((s, d) => s + (d.value || 0), 0);
+  const wonValue = allDeals.filter(d => d.stage === STAGE_WON).reduce((s, d) => s + (d.value || 0), 0);
   const weightedValue = allDeals.reduce((s, d) => s + (d.value || 0) * (d.probability || 0) / 100, 0);
   const openDeals = allDeals.filter(d => !isClosedStage(d.stage));
   const upcomingActivities = allActivities.filter(a => !a.completed && a.due_date).sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()).slice(0, 5);
 
-  const allPipelines = store.getPipelines();
+  const allPipelines = useStore(() => store.getPipelines());
   const hasMultiplePipelines = allPipelines.length > 1;
   const stageRows = allPipelines.flatMap(pipeline => pipeline.stages.map(stage => ({
     pipeline,
@@ -46,22 +47,10 @@ export default function Dashboard() {
   })).filter(s => s.value > 0);
 
   const statusColors = ['#7c7cff', '#5a8dee', '#2ecc71', '#f2a93b', '#e96d6d'];
-  const closedDeals = allDeals.filter(d => ['closed_won', 'closed_lost'].includes(d.stage));
-  const winRate = closedDeals.length > 0 ? Math.round((allDeals.filter(d => d.stage === 'closed_won').length / closedDeals.length) * 100) : 0;
+  const closedDeals = allDeals.filter(d => [STAGE_WON, STAGE_LOST].includes(d.stage));
+  const winRate = closedDeals.length > 0 ? Math.round((allDeals.filter(d => d.stage === STAGE_WON).length / closedDeals.length) * 100) : 0;
 
-  const forecastData = (() => {
-    const byMonth: Record<string, { month: string; expected: number; weighted: number }> = {};
-    const open = allDeals.filter(d => !isClosedStage(d.stage) && d.expected_close_date);
-    open.forEach(d => {
-      const key = d.expected_close_date!.slice(0, 7);
-      if (!byMonth[key]) {
-        byMonth[key] = { month: format(new Date(d.expected_close_date!), 'MMM yyyy'), expected: 0, weighted: 0 };
-      }
-      byMonth[key].expected += d.value;
-      byMonth[key].weighted += d.value * (d.probability || 0) / 100;
-    });
-    return Object.keys(byMonth).sort().map(key => byMonth[key]);
-  })();
+  const forecastData = buildRevenueForecast(allDeals);
 
   return (
     <div className="space-y-6">
@@ -73,7 +62,7 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<DollarSign className="w-5 h-5" />} label="Pipeline Value" value={formatCompactCurrency(totalValue)} sub={`Weighted: ${formatCompactCurrency(weightedValue)}`} color="blue" trend={12} />
-        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Won Revenue" value={formatCompactCurrency(wonValue)} sub={`${allDeals.filter(d => d.stage === 'closed_won').length} deals closed`} color="green" trend={8} />
+        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Won Revenue" value={formatCompactCurrency(wonValue)} sub={`${allDeals.filter(d => d.stage === STAGE_WON).length} deals closed`} color="green" trend={8} />
         <StatCard icon={<Users className="w-5 h-5" />} label="Contacts" value={allContacts.length.toString()} sub={`${allCompanies.length} companies`} color="purple" trend={5} />
         <StatCard icon={<Target className="w-5 h-5" />} label="Open Deals" value={openDeals.length.toString()} sub="Active pipeline" color="orange" trend={-2} />
       </div>

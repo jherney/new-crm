@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useStore, store } from '../store';
-import { Deal, DealStage, Pipeline, stageMeta, dealScore, scoreLabel, isClosedStage } from '../types';
-import { Plus, Search, LayoutGrid, List, X, GripVertical, Trash2 } from 'lucide-react';
+import { Deal, DealStage, stageMeta, isClosedStage } from '../types';
+import { dealScore, scoreLabel } from '../lib/deal-scoring';
+import DealForm from '../components/DealForm';
+import PipelineForm from '../components/PipelineForm';
+import { Plus, Search, LayoutGrid, List, GripVertical, Trash2 } from 'lucide-react';
 
 export default function DealsPage() {
   const deals = useStore(() => store.getDeals());
@@ -88,12 +91,11 @@ export default function DealsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Pipelines">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Pipelines">
         {pipelines.map(p => (
           <button
             key={p.id}
-            role="tab"
-            aria-selected={p.id === activePipeline.id}
+            aria-pressed={p.id === activePipeline.id}
             onClick={() => setActivePipelineId(p.id)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${p.id === activePipeline.id ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
           >
@@ -132,7 +134,7 @@ export default function DealsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{stage.label}</h3>
+                      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{stage.label}</h2>
                       <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">{stageDeals.length}</span>
                     </div>
                   </div>
@@ -151,9 +153,7 @@ export default function DealsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{deal.name}</p>
-                            {(() => { const s = scoreLabel(dealScore(deal)); return (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0" style={{ backgroundColor: s.color + '20', color: s.color }}>{s.label} {dealScore(deal)}</span>
-                            ); })()}
+                            <DealScoreBadge deal={deal} />
                           </div>
                           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mt-1">${deal.value.toLocaleString()}</p>
                           {getCompanyName(deal.company_id) && (
@@ -234,8 +234,10 @@ export default function DealsPage() {
           onClose={() => setShowPipelineForm(false)}
           onSave={(name, labels) => {
             const created = store.addPipeline(name, labels);
+            if (!created) return false;
             setActivePipelineId(created.id);
             setShowPipelineForm(false);
+            return true;
           }}
         />
       )}
@@ -248,9 +250,9 @@ export default function DealsPage() {
           contacts={contacts}
           companies={companies}
           onClose={() => setShowForm(false)}
-          onSave={(data) => {
-            if (editingDeal) store.updateDeal(editingDeal.id, data);
-            else store.addDeal(data as any);
+          onSave={(values) => {
+            if (editingDeal) store.updateDeal(editingDeal.id, values);
+            else store.addDeal({ ...values, closed_at: null });
             setShowForm(false);
           }}
         />
@@ -259,159 +261,12 @@ export default function DealsPage() {
   );
 }
 
-function DealForm({ deal, pipelines, defaultPipelineId, contacts, companies, onClose, onSave }: { deal: Deal | null; pipelines: Pipeline[]; defaultPipelineId: string; contacts: any[]; companies: any[]; onClose: () => void; onSave: (data: any) => void }) {
-  const [form, setForm] = useState({
-    name: deal?.name || '',
-    pipeline_id: deal?.pipeline_id || defaultPipelineId,
-    value: deal?.value?.toString() || '0',
-    currency: deal?.currency || 'USD',
-    stage: deal?.stage || 'prospect' as DealStage,
-    probability: deal?.probability?.toString() || '10',
-    expected_close_date: deal?.expected_close_date || '',
-    source: deal?.source || '',
-    description: deal?.description || '',
-    tags: deal?.tags?.join(', ') || '',
-    owner: deal?.owner || '',
-    contact_id: deal?.contact_id || '',
-    company_id: deal?.company_id || '',
-  });
-
-  const formPipeline = pipelines.find(p => p.id === form.pipeline_id) ?? pipelines[0];
-
-  const handlePipelineChange = (pipelineId: string) => {
-    const next = pipelines.find(p => p.id === pipelineId) ?? pipelines[0];
-    const stage = next.stages[0];
-    setForm({ ...form, pipeline_id: next.id, stage: stage.key, probability: stage.probability.toString() });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const stageMetaObj = stageMeta(form.stage, formPipeline);
-    onSave({
-      ...form,
-      value: parseFloat(form.value) || 0,
-      probability: parseInt(form.probability) || stageMetaObj.probability,
-      expected_close_date: form.expected_close_date || null,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      contact_id: form.contact_id || null,
-      company_id: form.company_id || null,
-    });
-  };
-
+function DealScoreBadge({ deal }: { deal: Deal }) {
+  const score = dealScore(deal);
+  const { label, color } = scoreLabel(score);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{deal ? 'Edit Deal' : 'New Deal'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deal Name *</label>
-            <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label htmlFor="deal-pipeline" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pipeline</label>
-            <select id="deal-pipeline" value={form.pipeline_id} onChange={e => handlePipelineChange(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-              {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Value ($)</label>
-              <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stage</label>
-              <select value={form.stage} onChange={e => { const s = e.target.value as DealStage; const m = stageMeta(s, formPipeline); setForm({ ...form, stage: s, probability: m.probability.toString() }); }} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                {formPipeline.stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Probability %</label>
-              <input type="number" min="0" max="100" value={form.probability} onChange={e => setForm({ ...form, probability: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Expected Close</label>
-              <input type="date" value={form.expected_close_date} onChange={e => setForm({ ...form, expected_close_date: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source</label>
-              <input value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} placeholder="e.g. referral, inbound" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact</label>
-              <select value={form.contact_id} onChange={e => setForm({ ...form, contact_id: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">None</option>
-                {contacts.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label>
-              <select value={form.company_id} onChange={e => setForm({ ...form, company_id: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">None</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Owner</label>
-            <input value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags (comma-separated)</label>
-            <input value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-          </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
-            <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">{deal ? 'Update' : 'Create'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function PipelineForm({ onClose, onSave }: { onClose: () => void; onSave: (name: string, stageLabels: string[]) => void }) {
-  const [name, setName] = useState('');
-  const [stages, setStages] = useState('Lead\nContacted\nProposal');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(name.trim(), stages.split('\n'));
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pipeline-form-title">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="pipeline-form-title" className="text-lg font-semibold text-gray-900 dark:text-white">New Pipeline</h2>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label htmlFor="pipeline-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pipeline Name *</label>
-            <input id="pipeline-name" required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Partnerships" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label htmlFor="pipeline-stages" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stages (one per line) *</label>
-            <textarea id="pipeline-stages" required rows={5} value={stages} onChange={e => setStages(e.target.value)} aria-describedby="pipeline-stages-help" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-            <p id="pipeline-stages-help" className="text-xs text-gray-500 mt-1">Closed Won and Closed Lost are added automatically.</p>
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
-            <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">Create</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0" style={{ backgroundColor: color + '20', color }}>
+      {label} {score}
+    </span>
   );
 }

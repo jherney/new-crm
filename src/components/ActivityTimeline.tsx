@@ -1,34 +1,94 @@
-import { Activity, Event, Deal, stageMeta } from '../types';
-import { store } from '../store';
-import { format } from 'date-fns';
+import { Activity, Event, Deal, Pipeline, stageMeta } from '../types';
+import { useStore, store } from '../store';
+import { format, isValid } from 'date-fns';
 import { Phone, Mail, Calendar, CheckSquare, StickyNote, Briefcase, Users } from 'lucide-react';
 
-type TimelineItem = {
+type TimelineItemKind = 'activity' | 'event' | 'deal';
+
+interface TimelineItem {
   id: string;
   date: string;
-  kind: 'activity' | 'event' | 'deal';
-  type: string;
+  kind: TimelineItemKind;
+  label: string;
   title: string;
   detail: string;
-  completed?: boolean;
-  color: string;
+  isCompleted: boolean;
+  dotColor: string;
+  icon: React.ReactNode;
+}
+
+const ACTIVITY_COLORS: Record<Activity['type'], string> = {
+  call: '#22c55e',
+  email: '#3b82f6',
+  meeting: '#a855f7',
+  task: '#f97316',
+  note: '#9ca3af',
 };
 
-const activityColor: Record<string, string> = {
-  call: 'bg-green-500',
-  email: 'bg-blue-500',
-  meeting: 'bg-purple-500',
-  task: 'bg-orange-500',
-  note: 'bg-gray-400',
-};
+const EVENT_COLOR = '#ec4899';
 
-const activityIcon: Record<string, React.ReactNode> = {
+const ACTIVITY_ICONS: Record<Activity['type'], React.ReactNode> = {
   call: <Phone className="w-3.5 h-3.5" />,
   email: <Mail className="w-3.5 h-3.5" />,
   meeting: <Calendar className="w-3.5 h-3.5" />,
   task: <CheckSquare className="w-3.5 h-3.5" />,
   note: <StickyNote className="w-3.5 h-3.5" />,
 };
+
+function toTimestamp(date: string): number {
+  const time = new Date(date).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function formatItemDate(date: string): string {
+  const parsed = new Date(date);
+  return isValid(parsed) ? format(parsed, 'MMM d, yyyy') : 'No date';
+}
+
+function buildTimelineItems(activities: Activity[], events: Event[], deals: Deal[], pipelines: Pipeline[]): TimelineItem[] {
+  const pipelineById = new Map(pipelines.map(p => [p.id, p]));
+
+  const activityItems = activities.map((a): TimelineItem => ({
+    id: a.id,
+    date: a.due_date || a.created_at,
+    kind: 'activity',
+    label: a.type,
+    title: a.subject,
+    detail: a.body || a.outcome,
+    isCompleted: a.completed,
+    dotColor: ACTIVITY_COLORS[a.type],
+    icon: ACTIVITY_ICONS[a.type],
+  }));
+
+  const eventItems = events.map((e): TimelineItem => ({
+    id: e.id,
+    date: e.start_date,
+    kind: 'event',
+    label: 'event',
+    title: e.title,
+    detail: e.location || e.description,
+    isCompleted: false,
+    dotColor: EVENT_COLOR,
+    icon: <Users className="w-3.5 h-3.5 text-gray-500" />,
+  }));
+
+  const dealItems = deals.map((d): TimelineItem => {
+    const stage = stageMeta(d.stage, pipelineById.get(d.pipeline_id));
+    return {
+      id: d.id,
+      date: d.expected_close_date || d.created_at,
+      kind: 'deal',
+      label: 'deal',
+      title: d.name,
+      detail: `$${d.value.toLocaleString()} · ${stage.label}`,
+      isCompleted: false,
+      dotColor: stage.color,
+      icon: <Briefcase className="w-3.5 h-3.5 text-gray-500" />,
+    };
+  });
+
+  return [...activityItems, ...eventItems, ...dealItems].sort((a, b) => toTimestamp(b.date) - toTimestamp(a.date));
+}
 
 interface ActivityTimelineProps {
   activities: Activity[];
@@ -37,61 +97,35 @@ interface ActivityTimelineProps {
 }
 
 export default function ActivityTimeline({ activities, deals, events = [] }: ActivityTimelineProps) {
-  const items: TimelineItem[] = [
-    ...activities.map(a => ({
-      id: a.id,
-      date: a.due_date || a.created_at,
-      kind: 'activity' as const,
-      type: a.type,
-      title: a.subject,
-      detail: a.body || a.outcome,
-      completed: a.completed,
-      color: activityColor[a.type] || 'bg-gray-400',
-    })),
-    ...events.map(e => ({
-      id: e.id,
-      date: e.start_date,
-      kind: 'event' as const,
-      type: e.type,
-      title: e.title,
-      detail: e.location || e.description,
-      color: 'bg-pink-500',
-    })),
-    ...deals.map(d => ({
-      id: d.id,
-      date: d.expected_close_date || d.created_at,
-      kind: 'deal' as const,
-      type: d.stage,
-      title: d.name,
-      detail: `$${d.value.toLocaleString()} · ${stageMeta(d.stage, store.getPipeline(d.pipeline_id)).label}`,
-      color: stageMeta(d.stage, store.getPipeline(d.pipeline_id)).color,
-    })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const pipelines = useStore(() => store.getPipelines());
+  const items = buildTimelineItems(activities, events, deals, pipelines);
 
   if (items.length === 0) {
-    return <p className="text-sm text-gray-500">No activity yet</p>;
+    return <p className="text-sm text-gray-600 dark:text-gray-400">No activity yet</p>;
   }
 
   return (
     <div className="relative">
-      <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700" />
-      <div className="space-y-4">
+      <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+      <ol className="space-y-4">
         {items.map(item => (
-          <div key={`${item.kind}-${item.id}`} className="relative flex gap-3 pl-6">
-            <span className={`absolute left-0 top-1 w-[15px] h-[15px] rounded-full border-2 border-white dark:border-gray-900 ${item.color}`} />
+          <li key={`${item.kind}-${item.id}`} className="relative flex gap-3 pl-6">
+            <span
+              className="absolute left-0 top-1 w-[15px] h-[15px] rounded-full border-2 border-white dark:border-gray-900"
+              style={{ backgroundColor: item.dotColor }}
+              aria-hidden="true"
+            />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {item.kind === 'activity' && activityIcon[item.type]}
-                {item.kind === 'event' && <Users className="w-3.5 h-3.5 text-gray-400" />}
-                {item.kind === 'deal' && <Briefcase className="w-3.5 h-3.5 text-gray-400" />}
-                <p className={`text-sm font-medium truncate ${item.completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>{item.title}</p>
+              <div className="flex items-center gap-2 text-gray-500">
+                {item.icon}
+                <p className={`text-sm font-medium truncate ${item.isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>{item.title}</p>
               </div>
-              {item.detail && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.detail}</p>}
-              <p className="text-xs text-gray-400 mt-0.5 capitalize">{item.kind === 'activity' ? item.type : item.kind} · {format(new Date(item.date), 'MMM d, yyyy')}</p>
+              {item.detail && <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-2">{item.detail}</p>}
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 capitalize">{item.label} · {formatItemDate(item.date)}</p>
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }

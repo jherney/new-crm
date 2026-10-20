@@ -184,9 +184,12 @@ export const store = {
   // Pipelines
   getPipelines: () => data.pipelines,
   getPipeline: (id: string) => data.pipelines.find(p => p.id === id),
-  addPipeline: (name: string, openStageLabels: string[]) => {
+  /** Returns null when the labels yield no usable open stage (blank or duplicates of Won/Lost). */
+  addPipeline: (name: string, openStageLabels: string[]): Pipeline | null => {
+    const stages = buildPipelineStages(openStageLabels);
+    if (!name.trim() || stages.every(s => s.is_won || s.is_lost)) return null;
     const now = new Date().toISOString();
-    const pipeline: Pipeline = { id: uuid(), name, stages: buildPipelineStages(openStageLabels), created_at: now, updated_at: now };
+    const pipeline: Pipeline = { id: uuid(), name: name.trim(), stages, created_at: now, updated_at: now };
     data.pipelines = [...data.pipelines, pipeline];
     notify();
     return pipeline;
