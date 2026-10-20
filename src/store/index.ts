@@ -1,5 +1,6 @@
 import type { Contact, Company, Deal, Activity, EmailTemplate, Event, Pipeline } from '../types';
-import { DEFAULT_PIPELINE_ID, STAGE_LOST, STAGE_WON, buildPipelineStages, defaultPipeline } from '../types';
+import { DEFAULT_PIPELINE_ID, STAGE_LOST, STAGE_WON } from '../types';
+import { buildPipelineStages, defaultPipeline } from '../lib/pipeline-stages';
 import { v4 as uuid } from 'uuid';
 
 const STORAGE_KEY = 'crm_data';

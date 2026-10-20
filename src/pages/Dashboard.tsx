@@ -1,10 +1,12 @@
 import { store, useStore } from '../store';
-import { STAGE_WON, STAGE_LOST, isClosedStage } from '../types';
+import { STAGE_WON, STAGE_LOST } from '../types';
+import { isClosedStage } from '../lib/pipeline-stages';
 import { TrendingUp, Users, DollarSign, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import { formatCompactCurrency } from '../lib/currency-format';
 import { buildRevenueForecast } from '../lib/revenue-forecast';
+import { periodTrend } from '../lib/period-trend';
 
 export default function Dashboard() {
   const allContacts = useStore(() => store.getContacts());
@@ -52,6 +54,11 @@ export default function Dashboard() {
 
   const forecastData = buildRevenueForecast(allDeals);
 
+  const pipelineValueTrend = periodTrend(allDeals, d => d.created_at, d => d.value || 0);
+  const wonRevenueTrend = periodTrend(allDeals.filter(d => d.stage === STAGE_WON), d => d.closed_at, d => d.value || 0);
+  const contactsTrend = periodTrend(allContacts, c => c.created_at, () => 1);
+  const openDealsTrend = periodTrend(openDeals, d => d.created_at, () => 1);
+
   return (
     <div className="space-y-6">
       <div>
@@ -61,10 +68,10 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={<DollarSign className="w-5 h-5" />} label="Pipeline Value" value={formatCompactCurrency(totalValue)} sub={`Weighted: ${formatCompactCurrency(weightedValue)}`} color="blue" trend={12} />
-        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Won Revenue" value={formatCompactCurrency(wonValue)} sub={`${allDeals.filter(d => d.stage === STAGE_WON).length} deals closed`} color="green" trend={8} />
-        <StatCard icon={<Users className="w-5 h-5" />} label="Contacts" value={allContacts.length.toString()} sub={`${allCompanies.length} companies`} color="purple" trend={5} />
-        <StatCard icon={<Target className="w-5 h-5" />} label="Open Deals" value={openDeals.length.toString()} sub="Active pipeline" color="orange" trend={-2} />
+        <StatCard icon={<DollarSign className="w-5 h-5" />} label="Pipeline Value" value={formatCompactCurrency(totalValue)} sub={`Weighted: ${formatCompactCurrency(weightedValue)}`} color="blue" trend={pipelineValueTrend} />
+        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Won Revenue" value={formatCompactCurrency(wonValue)} sub={`${allDeals.filter(d => d.stage === STAGE_WON).length} deals closed`} color="green" trend={wonRevenueTrend} />
+        <StatCard icon={<Users className="w-5 h-5" />} label="Contacts" value={allContacts.length.toString()} sub={`${allCompanies.length} companies`} color="purple" trend={contactsTrend} />
+        <StatCard icon={<Target className="w-5 h-5" />} label="Open Deals" value={openDeals.length.toString()} sub="Active pipeline" color="orange" trend={openDealsTrend} />
       </div>
 
       {/* Charts Row */}
@@ -192,7 +199,7 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ icon, label, value, sub, color, trend }: { icon: React.ReactNode; label: string; value: string; sub: string; color: string; trend: number }) {
+function StatCard({ icon, label, value, sub, color, trend }: { icon: React.ReactNode; label: string; value: string; sub: string; color: string; trend: number | null }) {
   const colorMap: Record<string, string> = {
     blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
     green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400',
@@ -204,9 +211,16 @@ function StatCard({ icon, label, value, sub, color, trend }: { icon: React.React
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
       <div className="flex items-center justify-between">
         <div className={`p-2 rounded-lg ${colorMap[color]}`}>{icon}</div>
-        <div className={`flex items-center gap-1 text-xs font-medium ${trend >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-          {trend >= 0 ? '↑' : '↓'}{Math.abs(trend)}%
-        </div>
+        {trend !== null && (
+          <div
+            className={`flex items-center gap-1 text-xs font-medium ${trend >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}
+            title="Change vs the previous 30 days"
+          >
+            <span aria-hidden="true">{trend >= 0 ? '↑' : '↓'}</span>
+            {Math.abs(trend)}%
+            <span className="sr-only">{trend >= 0 ? 'up' : 'down'} vs the previous 30 days</span>
+          </div>
+        )}
       </div>
       <div className="mt-3">
         <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>

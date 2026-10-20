@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore, store } from '../store';
-import { ArrowLeft, Mail, Phone, Building2, Edit, Trash2, Tag, FileText, Briefcase } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Building2, Trash2, Tag, FileText, Briefcase } from 'lucide-react';
 import { format } from 'date-fns';
 import ActivityTimeline from '../components/ActivityTimeline';
 
