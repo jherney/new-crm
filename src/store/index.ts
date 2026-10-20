@@ -1,4 +1,5 @@
-import type { Contact, Company, Deal, Activity, EmailTemplate, Event } from '../types';
+import type { Contact, Company, Deal, Activity, EmailTemplate, Event, Pipeline } from '../types';
+import { DEFAULT_PIPELINE_ID, STAGE_LOST, STAGE_WON, buildPipelineStages, defaultPipeline } from '../types';
 import { v4 as uuid } from 'uuid';
 
 const STORAGE_KEY = 'crm_data';
@@ -10,14 +11,22 @@ interface StoreData {
   activities: Activity[];
   templates: EmailTemplate[];
   events: Event[];
+  pipelines: Pipeline[];
 }
 
 function loadData(): StoreData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrateData(JSON.parse(raw));
   } catch {}
   return seedData();
+}
+
+// Data saved before multi-pipeline support has no pipelines and no pipeline_id on deals.
+function migrateData(stored: StoreData): StoreData {
+  const pipelines = stored.pipelines?.length ? stored.pipelines : [defaultPipeline(new Date().toISOString())];
+  const deals = stored.deals.map(d => ({ ...d, pipeline_id: d.pipeline_id || pipelines[0].id }));
+  return { ...stored, pipelines, deals };
 }
 
 function saveData(data: StoreData) {
@@ -45,12 +54,12 @@ function seedData(): StoreData {
   ];
 
   const deals: Deal[] = [
-    { id: uuid(), name: 'Acme Enterprise License', value: 150000, currency: 'USD', stage: 'negotiation', probability: 75, expected_close_date: '2026-12-15', closed_at: null, source: 'referral', description: 'Annual enterprise license renewal', tags: ['enterprise', 'renewal'], owner: 'Sales Team', contact_id: contacts[0].id, company_id: companies[0].id, created_at: now, updated_at: now },
-    { id: uuid(), name: 'Globex Automation Suite', value: 75000, currency: 'USD', stage: 'proposal', probability: 50, expected_close_date: '2026-11-30', closed_at: null, source: 'inbound', description: 'Manufacturing automation package', tags: ['automation'], owner: 'Sales Team', contact_id: contacts[1].id, company_id: companies[1].id, created_at: now, updated_at: now },
-    { id: uuid(), name: 'Initech Integration', value: 200000, currency: 'USD', stage: 'closed_won', probability: 100, expected_close_date: '2026-10-01', closed_at: '2026-10-01', source: 'partner', description: 'Full platform integration', tags: ['integration', 'partner'], owner: 'Sales Team', contact_id: contacts[2].id, company_id: companies[2].id, created_at: now, updated_at: now },
-    { id: uuid(), name: 'Umbrella Pilot Program', value: 45000, currency: 'USD', stage: 'qualified', probability: 25, expected_close_date: '2027-01-15', closed_at: null, source: 'conference', description: 'Healthcare pilot deployment', tags: ['pilot', 'healthcare'], owner: 'Sales Team', contact_id: contacts[3].id, company_id: companies[3].id, created_at: now, updated_at: now },
-    { id: uuid(), name: 'Stark R&D Platform', value: 500000, currency: 'USD', stage: 'prospect', probability: 10, expected_close_date: '2027-03-01', closed_at: null, source: 'outbound', description: 'Custom R&D platform development', tags: ['custom', 'enterprise'], owner: 'Sales Team', contact_id: contacts[4].id, company_id: companies[4].id, created_at: now, updated_at: now },
-    { id: uuid(), name: 'Acme Add-on Module', value: 30000, currency: 'USD', stage: 'closed_won', probability: 100, expected_close_date: '2026-09-15', closed_at: '2026-09-15', source: 'upsell', description: 'Additional analytics module', tags: ['upsell'], owner: 'Sales Team', contact_id: contacts[5].id, company_id: companies[0].id, created_at: now, updated_at: now },
+    { id: uuid(), pipeline_id: DEFAULT_PIPELINE_ID, name: 'Acme Enterprise License', value: 150000, currency: 'USD', stage: 'negotiation', probability: 75, expected_close_date: '2026-12-15', closed_at: null, source: 'referral', description: 'Annual enterprise license renewal', tags: ['enterprise', 'renewal'], owner: 'Sales Team', contact_id: contacts[0].id, company_id: companies[0].id, created_at: now, updated_at: now },
+    { id: uuid(), pipeline_id: DEFAULT_PIPELINE_ID, name: 'Globex Automation Suite', value: 75000, currency: 'USD', stage: 'proposal', probability: 50, expected_close_date: '2026-11-30', closed_at: null, source: 'inbound', description: 'Manufacturing automation package', tags: ['automation'], owner: 'Sales Team', contact_id: contacts[1].id, company_id: companies[1].id, created_at: now, updated_at: now },
+    { id: uuid(), pipeline_id: DEFAULT_PIPELINE_ID, name: 'Initech Integration', value: 200000, currency: 'USD', stage: 'closed_won', probability: 100, expected_close_date: '2026-10-01', closed_at: '2026-10-01', source: 'partner', description: 'Full platform integration', tags: ['integration', 'partner'], owner: 'Sales Team', contact_id: contacts[2].id, company_id: companies[2].id, created_at: now, updated_at: now },
+    { id: uuid(), pipeline_id: DEFAULT_PIPELINE_ID, name: 'Umbrella Pilot Program', value: 45000, currency: 'USD', stage: 'qualified', probability: 25, expected_close_date: '2027-01-15', closed_at: null, source: 'conference', description: 'Healthcare pilot deployment', tags: ['pilot', 'healthcare'], owner: 'Sales Team', contact_id: contacts[3].id, company_id: companies[3].id, created_at: now, updated_at: now },
+    { id: uuid(), pipeline_id: DEFAULT_PIPELINE_ID, name: 'Stark R&D Platform', value: 500000, currency: 'USD', stage: 'prospect', probability: 10, expected_close_date: '2027-03-01', closed_at: null, source: 'outbound', description: 'Custom R&D platform development', tags: ['custom', 'enterprise'], owner: 'Sales Team', contact_id: contacts[4].id, company_id: companies[4].id, created_at: now, updated_at: now },
+    { id: uuid(), pipeline_id: DEFAULT_PIPELINE_ID, name: 'Acme Add-on Module', value: 30000, currency: 'USD', stage: 'closed_won', probability: 100, expected_close_date: '2026-09-15', closed_at: '2026-09-15', source: 'upsell', description: 'Additional analytics module', tags: ['upsell'], owner: 'Sales Team', contact_id: contacts[5].id, company_id: companies[0].id, created_at: now, updated_at: now },
   ];
 
   const activities: Activity[] = [
@@ -74,7 +83,12 @@ function seedData(): StoreData {
     { id: uuid(), title: 'Customer Success Workshop', description: 'Best practices for customer onboarding', start_date: '2026-11-15T10:00:00', end_date: '2026-11-15T16:00:00', location: 'New York, NY', type: 'workshop', rsvps: 30, created_at: now, updated_at: now },
   ];
 
-  const data: StoreData = { contacts, companies, deals, activities, templates, events };
+  const renewals: Pipeline = {
+    id: uuid(), name: 'Renewals', stages: buildPipelineStages(['Upcoming', 'Outreach', 'Quote Sent']), created_at: now, updated_at: now,
+  };
+  const pipelines: Pipeline[] = [defaultPipeline(now), renewals];
+
+  const data: StoreData = { contacts, companies, deals, activities, templates, events, pipelines };
   saveData(data);
   return data;
 }
@@ -150,20 +164,45 @@ export const store = {
     notify();
   },
   moveDeal: (id: string, stage: Deal['stage']) => {
-    const stages = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'] as const;
-    const stageMeta = { prospect: 10, qualified: 25, proposal: 50, negotiation: 75, closed_won: 100, closed_lost: 0 };
     data.deals = data.deals.map(d => {
       if (d.id !== id) return d;
-      const isTerminal = stage === 'closed_won' || stage === 'closed_lost';
+      const pipeline = data.pipelines.find(p => p.id === d.pipeline_id);
+      const meta = pipeline?.stages.find(s => s.key === stage);
+      if (!meta) return d;
+      const isTerminal = stage === STAGE_WON || stage === STAGE_LOST;
       return {
         ...d,
         stage,
-        probability: stageMeta[stage],
+        probability: meta.probability,
         closed_at: isTerminal && !d.closed_at ? new Date().toISOString().split('T')[0] : d.closed_at,
         updated_at: new Date().toISOString(),
       };
     });
     notify();
+  },
+
+  // Pipelines
+  getPipelines: () => data.pipelines,
+  getPipeline: (id: string) => data.pipelines.find(p => p.id === id),
+  addPipeline: (name: string, openStageLabels: string[]) => {
+    const now = new Date().toISOString();
+    const pipeline: Pipeline = { id: uuid(), name, stages: buildPipelineStages(openStageLabels), created_at: now, updated_at: now };
+    data.pipelines = [...data.pipelines, pipeline];
+    notify();
+    return pipeline;
+  },
+  /** Deletes a pipeline and moves its deals to the first open stage of the first remaining pipeline. */
+  deletePipeline: (id: string) => {
+    if (data.pipelines.length <= 1) return false;
+    data.pipelines = data.pipelines.filter(p => p.id !== id);
+    const fallback = data.pipelines[0];
+    data.deals = data.deals.map(d => {
+      if (d.pipeline_id !== id) return d;
+      const stage = fallback.stages.some(s => s.key === d.stage) ? d.stage : fallback.stages[0].key;
+      return { ...d, pipeline_id: fallback.id, stage, updated_at: new Date().toISOString() };
+    });
+    notify();
+    return true;
   },
 
   // Activities

@@ -28,7 +28,7 @@ export default function DealDetail() {
     }
   };
 
-  const stage = stageMeta(deal.stage);
+  const stage = stageMeta(deal.stage, store.getPipeline(deal.pipeline_id));
   const weightedValue = deal.value * (deal.probability / 100);
 
   return (

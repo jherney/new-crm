@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore, store } from '../store';
 import { ArrowLeft, Globe, Phone, MapPin, Mail, Edit, Trash2, Tag, Users, FileText } from 'lucide-react';
 import { format } from 'date-fns';
+import ActivityTimeline from '../components/ActivityTimeline';
 
 export default function CompanyDetail() {
   const { id } = useParams<{ id: string }>();
@@ -9,6 +10,7 @@ export default function CompanyDetail() {
   const company = useStore(() => store.getCompany(id || ''));
   const contacts = useStore(() => store.getContacts().filter(c => c.company_id === id));
   const deals = useStore(() => store.getDeals().filter(d => d.company_id === id));
+  const activities = useStore(() => store.getActivities().filter(a => a.company_id === id));
 
   if (!company) {
     return (
@@ -150,6 +152,11 @@ export default function CompanyDetail() {
           </div>
         </div>
       )}
+      {/* Timeline */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Timeline</h2>
+        <ActivityTimeline activities={activities} deals={deals} />
+      </div>
     </div>
   );
 }

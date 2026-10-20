@@ -1,19 +1,25 @@
 import { useState } from 'react';
 import { useStore, store } from '../store';
-import { Deal, DEAL_STAGES, DealStage, stageMeta } from '../types';
-import { Plus, Search, LayoutGrid, List, X, GripVertical } from 'lucide-react';
+import { Deal, DealStage, Pipeline, stageMeta, dealScore, scoreLabel, isClosedStage } from '../types';
+import { Plus, Search, LayoutGrid, List, X, GripVertical, Trash2 } from 'lucide-react';
 
 export default function DealsPage() {
   const deals = useStore(() => store.getDeals());
   const contacts = useStore(() => store.getContacts());
   const companies = useStore(() => store.getCompanies());
+  const pipelines = useStore(() => store.getPipelines());
+  const [activePipelineId, setActivePipelineId] = useState<string>(() => store.getPipelines()[0].id);
+  const [showPipelineForm, setShowPipelineForm] = useState(false);
   const [view, setView] = useState<'pipeline' | 'list'>('pipeline');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [dragOverStage, setDragOverStage] = useState<DealStage | null>(null);
 
-  const filtered = deals.filter(d => {
+  const activePipeline = pipelines.find(p => p.id === activePipelineId) ?? pipelines[0];
+  const pipelineDeals = deals.filter(d => d.pipeline_id === activePipeline.id);
+
+  const filtered = pipelineDeals.filter(d => {
     return !search || `${d.name} ${d.owner}`.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -50,15 +56,22 @@ export default function DealsPage() {
     setDragOverStage(null);
   };
 
-  const pipelineStages = DEAL_STAGES.filter(s => !s.is_won && !s.is_lost);
-  const totalPipelineValue = filtered.filter(d => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + d.value, 0);
+  const handlePipelineDelete = () => {
+    const message = `Delete the "${activePipeline.name}" pipeline? Its ${pipelineDeals.length} deal(s) move to another pipeline.`;
+    if (pipelines.length <= 1 || !confirm(message)) return;
+    store.deletePipeline(activePipeline.id);
+    setActivePipelineId(store.getPipelines()[0].id);
+  };
+
+  const pipelineStages = activePipeline.stages.filter(s => !s.is_won && !s.is_lost);
+  const totalPipelineValue = filtered.filter(d => !isClosedStage(d.stage)).reduce((s, d) => s + d.value, 0);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Deals</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Pipeline: ${totalPipelineValue.toLocaleString()} · {deals.length} total</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Pipeline: ${totalPipelineValue.toLocaleString()} · {pipelineDeals.length} deals</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
@@ -73,6 +86,28 @@ export default function DealsPage() {
             <Plus className="w-4 h-4" /> Add Deal
           </button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Pipelines">
+        {pipelines.map(p => (
+          <button
+            key={p.id}
+            role="tab"
+            aria-selected={p.id === activePipeline.id}
+            onClick={() => setActivePipelineId(p.id)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${p.id === activePipeline.id ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+          >
+            {p.name}
+          </button>
+        ))}
+        <button onClick={() => setShowPipelineForm(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-500 border border-dashed border-gray-300 dark:border-gray-600 hover:text-blue-600 hover:border-blue-400">
+          <Plus className="w-4 h-4" /> New pipeline
+        </button>
+        {pipelines.length > 1 && (
+          <button onClick={handlePipelineDelete} aria-label={`Delete ${activePipeline.name} pipeline`} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <div className="relative">
@@ -114,7 +149,12 @@ export default function DealsPage() {
                       <div className="flex items-start gap-2">
                         <GripVertical className="w-4 h-4 text-gray-300 mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{deal.name}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{deal.name}</p>
+                            {(() => { const s = scoreLabel(dealScore(deal)); return (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0" style={{ backgroundColor: s.color + '20', color: s.color }}>{s.label} {dealScore(deal)}</span>
+                            ); })()}
+                          </div>
                           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mt-1">${deal.value.toLocaleString()}</p>
                           {getCompanyName(deal.company_id) && (
                             <p className="text-xs text-gray-500 mt-1 truncate">{getCompanyName(deal.company_id)}</p>
@@ -150,7 +190,7 @@ export default function DealsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filtered.map(deal => {
-                  const meta = stageMeta(deal.stage);
+                  const meta = stageMeta(deal.stage, activePipeline);
                   return (
                     <tr key={deal.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                       <td className="px-4 py-3">
@@ -189,9 +229,22 @@ export default function DealsPage() {
         </div>
       )}
 
+      {showPipelineForm && (
+        <PipelineForm
+          onClose={() => setShowPipelineForm(false)}
+          onSave={(name, labels) => {
+            const created = store.addPipeline(name, labels);
+            setActivePipelineId(created.id);
+            setShowPipelineForm(false);
+          }}
+        />
+      )}
+
       {showForm && (
         <DealForm
           deal={editingDeal}
+          pipelines={pipelines}
+          defaultPipelineId={activePipeline.id}
           contacts={contacts}
           companies={companies}
           onClose={() => setShowForm(false)}
@@ -206,9 +259,10 @@ export default function DealsPage() {
   );
 }
 
-function DealForm({ deal, contacts, companies, onClose, onSave }: { deal: Deal | null; contacts: any[]; companies: any[]; onClose: () => void; onSave: (data: any) => void }) {
+function DealForm({ deal, pipelines, defaultPipelineId, contacts, companies, onClose, onSave }: { deal: Deal | null; pipelines: Pipeline[]; defaultPipelineId: string; contacts: any[]; companies: any[]; onClose: () => void; onSave: (data: any) => void }) {
   const [form, setForm] = useState({
     name: deal?.name || '',
+    pipeline_id: deal?.pipeline_id || defaultPipelineId,
     value: deal?.value?.toString() || '0',
     currency: deal?.currency || 'USD',
     stage: deal?.stage || 'prospect' as DealStage,
@@ -222,9 +276,17 @@ function DealForm({ deal, contacts, companies, onClose, onSave }: { deal: Deal |
     company_id: deal?.company_id || '',
   });
 
+  const formPipeline = pipelines.find(p => p.id === form.pipeline_id) ?? pipelines[0];
+
+  const handlePipelineChange = (pipelineId: string) => {
+    const next = pipelines.find(p => p.id === pipelineId) ?? pipelines[0];
+    const stage = next.stages[0];
+    setForm({ ...form, pipeline_id: next.id, stage: stage.key, probability: stage.probability.toString() });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const stageMetaObj = stageMeta(form.stage as DealStage);
+    const stageMetaObj = stageMeta(form.stage, formPipeline);
     onSave({
       ...form,
       value: parseFloat(form.value) || 0,
@@ -248,6 +310,12 @@ function DealForm({ deal, contacts, companies, onClose, onSave }: { deal: Deal |
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deal Name *</label>
             <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+          <div>
+            <label htmlFor="deal-pipeline" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pipeline</label>
+            <select id="deal-pipeline" value={form.pipeline_id} onChange={e => handlePipelineChange(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
+              {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Value ($)</label>
@@ -255,8 +323,8 @@ function DealForm({ deal, contacts, companies, onClose, onSave }: { deal: Deal |
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stage</label>
-              <select value={form.stage} onChange={e => { const s = e.target.value as DealStage; const m = stageMeta(s); setForm({ ...form, stage: s, probability: m.probability.toString() }); }} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                {DEAL_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+              <select value={form.stage} onChange={e => { const s = e.target.value as DealStage; const m = stageMeta(s, formPipeline); setForm({ ...form, stage: s, probability: m.probability.toString() }); }} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                {formPipeline.stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
             </div>
             <div>
@@ -305,6 +373,42 @@ function DealForm({ deal, contacts, companies, onClose, onSave }: { deal: Deal |
           <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
             <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">{deal ? 'Update' : 'Create'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PipelineForm({ onClose, onSave }: { onClose: () => void; onSave: (name: string, stageLabels: string[]) => void }) {
+  const [name, setName] = useState('');
+  const [stages, setStages] = useState('Lead\nContacted\nProposal');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(name.trim(), stages.split('\n'));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pipeline-form-title">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 id="pipeline-form-title" className="text-lg font-semibold text-gray-900 dark:text-white">New Pipeline</h2>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label htmlFor="pipeline-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pipeline Name *</label>
+            <input id="pipeline-name" required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Partnerships" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label htmlFor="pipeline-stages" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stages (one per line) *</label>
+            <textarea id="pipeline-stages" required rows={5} value={stages} onChange={e => setStages(e.target.value)} aria-describedby="pipeline-stages-help" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            <p id="pipeline-stages-help" className="text-xs text-gray-500 mt-1">Closed Won and Closed Lost are added automatically.</p>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
+            <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 font-medium">Create</button>
           </div>
         </form>
       </div>
