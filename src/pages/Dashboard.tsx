@@ -1,5 +1,6 @@
 import { store, useStore } from '../store';
-import { STAGE_WON, STAGE_LOST, isClosedStage } from '../types';
+import { STAGE_WON, STAGE_LOST } from '../types';
+import { isClosedStage } from '../lib/pipeline-stages';
 import { TrendingUp, Users, DollarSign, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';

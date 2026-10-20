@@ -1,6 +1,6 @@
 import type { Deal } from '../types';
-import { isClosedStage } from '../types';
-import { format } from 'date-fns';
+import { isClosedStage } from './pipeline-stages';
+import { format, parseISO } from 'date-fns';
 
 export interface ForecastMonth {
   month: string;
@@ -15,7 +15,7 @@ export function buildRevenueForecast(deals: Deal[]): ForecastMonth[] {
   for (const deal of deals) {
     if (isClosedStage(deal.stage) || !deal.expected_close_date) continue;
     const monthKey = deal.expected_close_date.slice(0, 7);
-    const bucket = byMonthKey.get(monthKey) ?? { month: format(new Date(deal.expected_close_date), 'MMM yyyy'), expected: 0, weighted: 0 };
+    const bucket = byMonthKey.get(monthKey) ?? { month: format(parseISO(deal.expected_close_date), 'MMM yyyy'), expected: 0, weighted: 0 };
     bucket.expected += deal.value;
     bucket.weighted += (deal.value * (deal.probability || 0)) / 100;
     byMonthKey.set(monthKey, bucket);

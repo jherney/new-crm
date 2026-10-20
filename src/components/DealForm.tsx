@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { Company, Contact, Deal, DealStage, Pipeline, stageMeta } from '../types';
+import { Company, Contact, Deal, DealStage, Pipeline } from '../types';
+import { stageMeta } from '../lib/pipeline-stages';
 import { useEscapeKey } from '../hooks/use-escape-key';
 
 export type DealFormValues = Omit<Deal, 'id' | 'created_at' | 'updated_at' | 'closed_at'>;

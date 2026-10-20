@@ -1,4 +1,5 @@
-import { Activity, Event, Deal, Pipeline, stageMeta } from '../types';
+import { Activity, Event, Deal, Pipeline } from '../types';
+import { stageMeta } from '../lib/pipeline-stages';
 import { useStore, store } from '../store';
 import { format, isValid } from 'date-fns';
 import { Phone, Mail, Calendar, CheckSquare, StickyNote, Briefcase, Users } from 'lucide-react';

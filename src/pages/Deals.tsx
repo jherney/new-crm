@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useStore, store } from '../store';
-import { Deal, DealStage, stageMeta, isClosedStage } from '../types';
+import { Deal, DealStage } from '../types';
+import { stageMeta, isClosedStage } from '../lib/pipeline-stages';
 import { dealScore, scoreLabel } from '../lib/deal-scoring';
 import DealForm from '../components/DealForm';
 import PipelineForm from '../components/PipelineForm';
+import ClosedStageDropZones from '../components/ClosedStageDropZones';
 import { Plus, Search, LayoutGrid, List, GripVertical, Trash2 } from 'lucide-react';
 
 export default function DealsPage() {
@@ -67,6 +69,7 @@ export default function DealsPage() {
   };
 
   const pipelineStages = activePipeline.stages.filter(s => !s.is_won && !s.is_lost);
+  const closedStages = activePipeline.stages.filter(s => s.is_won || s.is_lost);
   const totalPipelineValue = filtered.filter(d => !isClosedStage(d.stage)).reduce((s, d) => s + d.value, 0);
 
   return (
@@ -118,6 +121,7 @@ export default function DealsPage() {
       </div>
 
       {view === 'pipeline' ? (
+        <>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {pipelineStages.map(stage => {
             const stageDeals = filtered.filter(d => d.stage === stage.key);
@@ -174,6 +178,15 @@ export default function DealsPage() {
             );
           })}
         </div>
+        <ClosedStageDropZones
+          closedStages={closedStages}
+          deals={filtered}
+          dragOverStage={dragOverStage}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        />
+        </>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="overflow-x-auto">

@@ -1,8 +1,8 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore, store } from '../store';
-import { ArrowLeft, DollarSign, Calendar, User, Building2, Tag, FileText, TrendingUp, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, DollarSign, Calendar, User, Building2, Tag, FileText, TrendingUp, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { stageMeta } from '../types';
+import { stageMeta } from '../lib/pipeline-stages';
 
 export default function DealDetail() {
   const { id } = useParams<{ id: string }>();
